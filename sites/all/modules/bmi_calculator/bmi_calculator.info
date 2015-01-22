@@ -1,0 +1,4 @@
+name = Body Mass Index Calculator
+package = Example modules
+description = Create a BMI calculator
+core = 7.x

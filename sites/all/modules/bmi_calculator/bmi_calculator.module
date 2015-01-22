@@ -1,0 +1,183 @@
+<?php
+
+/**
+ * Implements hook_menu().
+ */
+function bmi_calculator_menu() {
+  $items['examples/bmi-calculator'] = array(
+    'title' => 'Body Mass Index Calculator',
+    'page callback' => 'bmi_calculator_page',
+    'access callback' => TRUE,
+  );
+
+  return $items;
+}
+
+function bmi_calculator_page() {
+
+  $form_state = array(
+    'no_redirect' => TRUE,
+    // Re render the form after submit. This is used if you want the form to
+    // remeber the values after submission
+    're_render' => TRUE,
+  );
+
+  // We add the stylesheet just to show a nice chart
+  drupal_add_css(drupal_get_path('module', 'bmi_calculator') . '/css/bmi-calculator.css');
+
+  // We store the form in a separate variable because we need it to rerend it
+  // in case there is a validation error.
+  $form = drupal_build_form('bmi_calculator_form', $form_state);
+  $categories['underweight'] = '<div class="weight-category">'. t('Underweight') .'</div>';
+  $categories['normal'] = '<div class="weight-category">'. t('Normal') .'</div>';
+  $categories['overweight'] = '<div class="weight-category">'. t('Overweight') .'</div>';
+  $categories['obese'] = '<div class="weight-category">'. t('Obese') .'</div>';
+  $output = array();
+  $output['bmi_chart'] = array(
+    '#type' => 'markup',
+  );
+  $output['bmi_chart']['#markup'] = '<div class="bmi-chart">';
+  $output['bmi_chart']['#markup'] .= '<div class="result">';
+  // In case the form is not submitted through AJAX
+  if (isset($form_state['result']) && $form_state['result'] > 0) {
+    $output['bmi_chart']['#markup'] .= $form_state['result'];
+    $categories[$form_state['conclusion']] = '<div class="active">'. $categories[$form_state['conclusion']] .'</div>';
+  }
+  $output['bmi_chart']['#markup'] .= '</div>';
+  foreach ($categories as $conclusion => $category) {
+    $output['bmi_chart']['#markup'] .= '<div class="'. $conclusion .'">'. $category .'</div>';
+  }
+  $output['bmi_chart']['#markup'] .= '</div>';
+  $output['bmi_form'] = array();
+
+  // In this example we want to display a clean form after we get the result.
+  // If instead we need to render the form with the old values in, comment
+  // out this if block.
+  if (!empty($form_state['executed'])) {
+    $clean_form_state = array(
+      'no_redirect' => TRUE,
+      // This makes sure $_POST will not be added into the form.
+      'input' => TRUE,
+    );
+    $clean_form = drupal_build_form('bmi_calculator_form', $clean_form_state);
+    $output['bmi_form'] = $clean_form;
+  }
+  else {
+    $output['bmi_form'] = $form;
+  }
+
+  return $output;
+}
+
+function bmi_calculator_form($form, &$form_state) {
+  $form = array();
+
+  $form['#categories'] = array(
+    'underweight' => t('Underweight'),
+    'normal' => t('Normal'),
+    'overweight' => t('Overweight'),
+    'obese' => t('Obese'),
+  );
+  $form['height'] =  array(
+    '#type' => 'textfield',
+    '#title' => t('Your height'),
+    '#size' => 5,
+    '#maxlength' => 3,
+    '#default_value' => '',
+    '#required' => TRUE,
+    '#field_suffix' => 'cm',
+  );
+
+  $form['weight'] =  array(
+    '#type' => 'textfield',
+    '#title' => t('Your weight'),
+    '#default_value' => '',
+    '#size' => 5,
+    '#maxlength' => 3,
+    '#required' => TRUE,
+    '#field_suffix' => 'kg',
+  );
+
+  // We add the "#ajax" element which will trigger the AJAX submit
+  // of the form.
+  $form['submit'] = array(
+    '#type' => 'submit',
+    '#value' => t('Calculate'),
+    '#ajax' => array(
+      'callback' => 'bmi_calculator_ajax_callback',
+    )
+  );
+
+  return $form;
+}
+
+/**
+ * Validates the BMI calculator form
+ */
+function bmi_calculator_form_validate($form, &$form_state) {
+  if (!is_numeric($form_state['values']['height'])) {
+    form_set_error('height', t('You have to enter a numeric value'));
+  }
+  elseif ($form_state['values']['height'] <= 0) {
+    form_set_error('height', t('Nobody is that short'));
+  }
+  if (!is_numeric($form_state['values']['weight'])) {
+    form_set_error('weight', t('You have to enter a numeric value'));
+  }
+  elseif ($form_state['values']['weight'] <= 0) {
+    form_set_error('weight', t('Can you fly?'));
+  }
+}
+
+/**
+ * Submit the BMI calculator form
+ */
+function bmi_calculator_form_submit($form, &$form_state) {
+  $height = $form_state['values']['height'] / 100;
+  $weight = $form_state['values']['weight'];
+  $bmi = round($weight / ($height * $height), 1);
+
+  // In a real case scenario we would store the values in the database.
+  // But we don't need to do that now. $form_state is enough to pass
+  // the results.
+  $form_state['result'] = $bmi;
+  if ($bmi < 18.5) {
+    $conclusion = 'underweight';
+  }
+  elseif ($bmi <= 24.9) {
+    $conclusion = 'normal';
+  }
+  elseif ($bmi <= 29.9) {
+    $conclusion = 'overweight';
+  }
+  else {
+    $conclusion = 'obese';
+  }
+  $form_state['conclusion'] = $conclusion;
+}
+
+function bmi_calculator_ajax_callback($form, $form_state) {
+  $commands = array();
+  // Remove any pre-existing status messages from a validation failure.
+  $commands[] = ajax_command_remove('.messages');// We can achieve this in more than one way, but for this example we will
+  // replace multiple selectors.
+  if ($messages = theme('status_messages')) {
+    $commands[] = ajax_command_prepend('#bmi-calculator-form', $messages);
+  }
+  if (isset($form_state['result'])) {
+    $commands[] = ajax_command_html('.bmi-chart .result', $form_state['result']);
+  }
+  if (isset($form_state['conclusion'])) {
+    $conclusion = $form_state['conclusion'];
+    foreach($form['#categories'] as $result => $category) {
+      if ($result == $conclusion) {
+        $output = '<div class="' . $result . '"><div class="active"><div class="weight-category">' . $category . '</div></div></div>';
+      }
+      else {
+        $output = '<div class="' . $result . '"><div class="weight-category">' . $category . '</div></div>';
+      }
+      $commands[] = ajax_command_replace('.' . $result, $output);
+    }
+  }
+  return array('#type' => 'ajax', '#commands' => $commands);
+}

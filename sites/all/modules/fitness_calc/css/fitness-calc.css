@@ -1,0 +1,37 @@
+/* Fitness calculator */
+.fitness-chart {
+  width: 200px;
+  text-align: center;
+}
+
+.fitness-chart .result {
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.fitness-chart .weight-category {
+  padding: 10px;
+  background: #BEBEBE;
+  margin: 1px 0;
+}
+
+.fitness-chart .active {
+  font-weight: bold;
+}
+
+.fitness-chart .underweight .active .weight-category {
+  background: #f7f695;
+}
+
+.fitness-chart .normal .active .weight-category {
+  background: #23ae5e;
+  color: #FFFFFF;
+}
+
+.fitness-chart .overweight .active .weight-category {
+  background: #f76969;
+}
+
+.fitness-chart .obese .active .weight-category {
+  background: #ff0000;
+}
